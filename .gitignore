@@ -1,0 +1,20 @@
+# Device material: never commit
+pp_device_material.h
+pp_device_material.generated.h
+device_material_info.txt
+# Flash images
+*.img
+flash-dumps/
+# Build output: built images contain the device material
+build/
+*.bin
+*.elf
+*.map
+*.hex
+*.uf2
+*.zip
+# Serial logs and Bluetooth captures show the device address
+*.log
+*.pcap
+*.pcapng
+*.btsnoop
