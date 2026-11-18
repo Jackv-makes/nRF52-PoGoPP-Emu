@@ -1,6 +1,6 @@
 # Pokémon GO Plus+ on the XIAO 1.47" touch display
 
-!\[The XIAO 1.47" display running the firmware](images/device.jpg)
+![The XIAO 1.47" display running the firmware](images/device.jpg)
 
 This is firmware that turns Seeed's
 [XIAO 1.47" touch display](https://www.seeedstudio.com/1-47-Inch-Touch-Display-Powered-by-XIAO-nRF52840-Plus-p-6995.html)
