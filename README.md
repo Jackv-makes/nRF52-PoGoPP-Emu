@@ -108,21 +108,22 @@ saved.
 I haven't measured it yet, so these are my estimates from the datasheets and
 from how the firmware runs, next to my
 [ESP32 version](https://github.com/Jackv-makes/ESP32-PoGoPP-Emu) on the
-M5Stack Stick S3.
+M5Stack Stick S3. To keep it fair, both get a 250 mAh battery, the size the
+Stick has built in.
 
 ||This board|ESP32 version on the Stick S3|
 |-|-|-|
-|Battery|700 mAh (the one I use)|250 mAh, built in|
-|Screen when idle|off after 30 seconds|dimmed, but stays on|
-|Between Bluetooth events|the chip sleeps|the chip stays awake at full speed|
-|Draw while connected|about 2 to 4 mA with the screen off, 12 to 20 mA more with it on|about 40 to 60 mA|
-|Time playing|2 to 4 days if you glance at it now and then, about a day and a half with the screen always on|about 4 to 6 hours|
+|Battery|250 mAh|250 mAh, built in|
+|Screen when idle|off after 30 seconds|off after a minute|
+|Between Bluetooth events|the chip sleeps|the chip stays awake, at 80 MHz|
+|Draw while connected|about 2 to 4 mA with the screen off, 12 to 20 mA more with it on|about 20 to 35 mA with the screen off|
+|Time playing|about 17 to 34 hours if you glance at it now and then, about 10 to 18 hours with the screen always on|about 7 to 12 hours|
 
 The nRF52840 is made for small battery gadgets, and its Bluetooth stack
-sleeps between events on its own. The ESP32 version never sleeps between
-events, its screen never fully turns off, and the Stick's battery is about a
-third the size. Both go to sleep after 15 minutes without a connection, so
-neither runs flat sitting in a drawer.
+sleeps between events on its own. The ESP32 version stays awake between
+events, even at its slower clock, so on the same battery it runs flat a lot
+sooner. This board goes to sleep after 15 minutes without a connection and the
+ESP32 version after 5, so neither runs flat sitting in a drawer.
 
 ## What works
 
