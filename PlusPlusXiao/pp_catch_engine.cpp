@@ -11,6 +11,14 @@ static bool gReleasePending = false;
 static uint32_t gReleaseAt = 0;
 static constexpr uint32_t kReleaseAfterMs = 500;
 
+// The last prompt the app showed (Pokemon, new Pokemon or Pokestop) and when.
+// A solid red flash right after a Pokestop prompt is the app turning down the
+// spin (one 1.2 s red with vibration, and the stop is offered again after
+// it), not a full Pokemon box. The prompts last 30 s.
+static PPLedEvent gLastPrompt = PP_LED_NONE;
+static uint32_t gLastPromptAt = 0;
+static constexpr uint32_t kPromptWindowMs = 35000;
+
 static void firePress(const CatchEngineRefs& refs)
 {
   // Per u/EeveesGalore's GO Plus notes: the button is sampled every 50 ms,
@@ -56,6 +64,7 @@ const char* ppLedEventLabel(PPLedEvent evt)
     case PP_LED_BOX_FULL: return "Box full";
     case PP_LED_BALLS_EMPTY: return "No balls / out of range";
     case PP_LED_UNKNOWN: return "Unknown pattern";
+    case PP_LED_SPIN_FAILED: return "Spin didn't go through";
     default: return "-";
   }
 }
@@ -64,6 +73,7 @@ void ppCatchReset()
 {
   gPressPending = false;
   gReleasePending = false;
+  gLastPrompt = PP_LED_NONE;
 }
 
 bool ppCatchRequestPress(const CatchEngineRefs& refs, uint32_t delayMs, const char* reason)
@@ -180,7 +190,8 @@ PPLedEvent ppCatchHandleLedWrite(const CatchEngineRefs& refs, const uint8_t* buf
   } else if (countRed && countOff && countRed == countNotOff) {
     evt = PP_LED_BALLS_EMPTY;
   } else if (countRed && !countOff && countRed == countNotOff) {
-    evt = PP_LED_BOX_FULL;
+    bool afterStop = gLastPrompt == PP_LED_POKESTOP && (millis() - gLastPromptAt) < kPromptWindowMs;
+    evt = afterStop ? PP_LED_SPIN_FAILED : PP_LED_BOX_FULL;
   } else if (countGreen && countGreen == countNotOff) {
     evt = PP_LED_POKEMON;
     press = (catchMode == 1);
@@ -204,6 +215,11 @@ PPLedEvent ppCatchHandleLedWrite(const CatchEngineRefs& refs, const uint8_t* buf
     evt = PP_LED_UNKNOWN;
     // pgpemu presses on anything it does not recognise when auto is on.
     press = spin || (catchMode != 0);
+  }
+
+  if (evt == PP_LED_POKEMON || evt == PP_LED_NEW_POKEMON || evt == PP_LED_POKESTOP) {
+    gLastPrompt = evt;
+    gLastPromptAt = millis();
   }
 
   if (evt != PP_LED_OFF && refs.onEvent) {

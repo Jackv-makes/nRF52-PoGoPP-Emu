@@ -29,6 +29,7 @@ enum PPLedEvent : uint8_t {
   PP_LED_BOX_FULL,
   PP_LED_BALLS_EMPTY,
   PP_LED_UNKNOWN,
+  PP_LED_SPIN_FAILED,
 };
 
 struct CatchEngineRefs {

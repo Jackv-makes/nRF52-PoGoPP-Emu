@@ -1,6 +1,6 @@
 # Pokémon GO Plus+ on the XIAO 1.47" touch display
 
-!\[The XIAO 1.47" display running the firmware](images/device.jpg)
+![The XIAO 1.47" display running the firmware](images/device.jpg)
 
 This is firmware that turns Seeed's
 [XIAO 1.47" touch display](https://www.seeedstudio.com/1-47-Inch-Touch-Display-Powered-by-XIAO-nRF52840-Plus-p-6995.html)
@@ -93,6 +93,10 @@ The screen shows the link and the battery at the top, then the last thing
 the app reported, the mode, and counters for what you've caught, what fled
 and the stops you've spun since it was switched on. The last row, LINKED,
 shows how long the phone has been connected this time.
+
+When a stop won't spin, say it's still on cool-down, the game answers with a
+quick red flash. The screen shows NO SPIN for that. BOX FULL only comes up
+after a Pokémon.
 
 The screen goes dark after 30 seconds to save battery, and a tap or a button
 wakes it. The buttons work with it dark. On battery it goes to sleep after

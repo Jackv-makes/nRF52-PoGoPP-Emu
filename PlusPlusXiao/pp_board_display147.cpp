@@ -556,6 +556,8 @@ void ppBoardOnEvent(PPLedEvent evt, const char* label)
     case PP_LED_CAUGHT: ++gCountCaught; showBanner(PP_UI_BANNER_CAUGHT, kBannerMs); break;
     case PP_LED_FLED: ++gCountFled; showBanner(PP_UI_BANNER_FLED, kBannerMs); break;
     case PP_LED_ITEMS: ++gCountSpins; showBanner(PP_UI_BANNER_ITEMS, kBannerMs); break;
+    // The app turned a spin down (a stop on cool-down, say): nothing to fix.
+    case PP_LED_SPIN_FAILED: showBanner(PP_UI_BANNER_NO_SPIN, kBannerMs); break;
     // Warnings want action in the game: they light the screen.
     case PP_LED_BALLS_EMPTY: showBanner(PP_UI_BANNER_NO_BALLS, kWarningBannerMs); screenWake(); break;
     case PP_LED_BAG_FULL: showBanner(PP_UI_BANNER_BAG_FULL, kWarningBannerMs); screenWake(); break;

@@ -133,6 +133,7 @@ static BannerLook bannerLook(const PPUiState& st)
     case PP_UI_BANNER_BAG_FULL: return { "BAG FULL", "no items", PP_UI_ORANGE, PP_UI_BLACK };
     case PP_UI_BANNER_BOX_FULL: return { "BOX FULL", "no catching", PP_UI_ORANGE, PP_UI_BLACK };
     case PP_UI_BANNER_NO_BALLS: return { "NO BALLS", "out of balls", PP_UI_ORANGE, PP_UI_BLACK };
+    case PP_UI_BANNER_NO_SPIN: return { "NO SPIN", "stop said no", PP_UI_CARD, PP_UI_ORANGE };
     case PP_UI_BANNER_PRESSED: return { "PRESS", "button sent", PP_UI_WHITE, PP_UI_BLACK };
     case PP_UI_BANNER_NOT_CONNECTED: return { "NO LINK", "not connected", PP_UI_RED, PP_UI_WHITE };
     case PP_UI_BANNER_ADVERTISING: return { "SEARCH", "fast, 2 min", PP_UI_YELLOW, PP_UI_BLACK };
