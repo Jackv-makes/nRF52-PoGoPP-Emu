@@ -149,7 +149,7 @@ GNU AGPL v3.0, the same as kiyoukan's firmware that this builds on. See
 * [kiyoukan](https://github.com/kiyoukan/nRF52-go-plus-plus-backup-) for
 working out the Plus+ pairing and reconnect protocol and publishing the
 nRF52 firmware this runs on.
-* [shortcuts](https://github.com/shortcuts/pgpemu) for pgpemu, and yohanes,
+* [yohanes](https://github.com/shortcuts/pgpemu) for pgpemu, and yohanes,
 spezifisch and paper183 for the pgpemu work it builds on. The LED pattern
 reading and the button press timing come from there.
 * [Seeed Studio](https://www.seeedstudio.com/) for the board, and their
