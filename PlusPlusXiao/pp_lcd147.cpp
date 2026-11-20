@@ -16,8 +16,9 @@ static constexpr uint8_t kPinSdCs = D6;      // P1.11, microSD on the same SPI b
 static constexpr uint8_t kPinTouchInt = D7;  // P1.12, low while touched
 
 static constexpr int16_t kColOffset = 34;    // 172 visible of 240 columns
-// Seeed runs this panel at 25 MHz; SPIM3 picks 16 MHz below 32.
-static const SPISettings kSpi(16000000, MSBFIRST, SPI_MODE0);
+// Seeed runs this panel at 25 MHz; SPIM3 picks 16 MHz below 32, so this is
+// the next step up. It halves the time a redraw takes (v0.6).
+static const SPISettings kSpi(32000000, MSBFIRST, SPI_MODE0);
 
 static constexpr uint8_t kTouchAddr = 0x63;
 static constexpr uint8_t kTouchReg = 0x01;
@@ -158,9 +159,8 @@ void PPLcd147::initPanel()
   command(0xE1, kGammaNeg, sizeof(kGammaNeg));
   command(INVOFF);                                     // this glass: normal colours
   command(MADCTL, kMadctl, sizeof(kMadctl));
-  deselect();
-  fillRect(0, 0, PP_UI_W, PP_UI_H, PP_UI_BLACK);
-  select();
+  // No clear here: every caller keeps the backlight off until it has drawn
+  // the whole screen, so whatever is in the panel's memory is never seen.
   command(DISPON);
   deselect();
   delay(20);
@@ -252,7 +252,7 @@ void PPLcd147::wake()
   // trust whatever state it is in.
   uint32_t since = millis() - _sleptAt;
   if (since < 120) delay(120 - since);
-  _asleep = false;                     // initPanel's clear must reach the glass
+  _asleep = false;                     // the caller's redraw must reach the glass
   reinit();
 }
 

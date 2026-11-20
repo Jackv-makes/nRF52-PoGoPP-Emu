@@ -70,6 +70,9 @@ static uint8_t gLastDropReason = 0;
 static uint8_t gBacklight = 1;
 static uint32_t gLifetimeConnSec = 0;
 static bool gSettingsLoaded = false;
+static bool gSavePending = false;
+static uint32_t gSaveDueAt = 0;
+static constexpr uint32_t kSaveDelayMs = 2000;
 
 static const uint8_t kBacklightLevels[] = { 40, 120, 255 };
 static const char* const kBacklightNames[] = { "low", "mid", "high" };
@@ -117,6 +120,16 @@ static void saveSettings()
   }
   f.write(reinterpret_cast<const uint8_t*>(&rec), sizeof(rec));
   f.close();
+  gSavePending = false;
+}
+
+// A save rewrites the file in flash, which holds up the loop for a while.
+// Changes from the buttons and the screen are saved once things go quiet,
+// so the screen shows them straight away (v0.6).
+static void saveSettingsSoon()
+{
+  gSavePending = true;
+  gSaveDueAt = millis() + kSaveDelayMs;
 }
 
 // ---------------- screen ----------------
@@ -201,32 +214,25 @@ static uint8_t pollButton(Button& b)
 
 // ---------------- touch ----------------
 
-static constexpr uint32_t kTapMaxMs = 600;
 static bool gTouchDown = false;
-static bool gTouchWoke = false;        // this touch woke the screen: no action
-static uint32_t gTouchAt = 0;
-static int16_t gTouchX = 0, gTouchY = 0;
 
-// Returns the zone tapped (finger lifted), or PP_UI_ZONE_NONE.
+// Returns the zone touched, or PP_UI_ZONE_NONE. A touch counts the moment
+// the finger lands rather than when it lifts (v0.6); one on a dark screen
+// only wakes it.
 static uint8_t pollTouch()
 {
   int16_t x, y;
   bool down = gLcd.touchRead(x, y);
-  uint32_t now = millis();
   if (down && !gTouchDown) {
     gTouchDown = true;
-    gTouchAt = now;
-    gTouchX = x;
-    gTouchY = y;
-    gTouchWoke = !gScreenOn;
+    bool woke = !gScreenOn;
     screenWake();
-    return PP_UI_ZONE_NONE;
+    return woke ? PP_UI_ZONE_NONE : ppUiHitTest(x, y);
   }
   if (!down && gTouchDown) {
     gTouchDown = false;
     screenWake();
-    if (gTouchWoke || (now - gTouchAt) > kTapMaxMs) return PP_UI_ZONE_NONE;
-    return ppUiHitTest(gTouchX, gTouchY);
+    return PP_UI_ZONE_NONE;
   }
   if (down) screenWake();              // a held finger keeps the screen on
   return PP_UI_ZONE_NONE;
@@ -363,7 +369,7 @@ static void applyPreset(uint8_t p)
   bool spin = (p == PP_UI_PRESET_AUTO || p == PP_UI_PRESET_SPIN);
   gCatchMode = catching ? PP_CATCH_ALL : PP_CATCH_OFF;
   gAutoSpin = spin;
-  saveSettings();
+  saveSettingsSoon();
   Serial.print("Mode -> ");
   Serial.println(presetLabel(p));
 }
@@ -376,7 +382,7 @@ static void actNextPreset()
 static void actToggleAutoSpin()
 {
   gAutoSpin = !gAutoSpin;
-  saveSettings();
+  saveSettingsSoon();
   Serial.print("Auto spin -> ");
   Serial.println(gAutoSpin ? "on" : "off");
 }
@@ -384,7 +390,7 @@ static void actToggleAutoSpin()
 static void actCycleBacklight()
 {
   gBacklight = (gBacklight + 1) % sizeof(kBacklightLevels);
-  saveSettings();
+  saveSettingsSoon();
   if (gScreenOn) gLcd.backlight(kBacklightLevels[gBacklight]);
   Serial.print("Backlight -> ");
   Serial.println(kBacklightNames[gBacklight]);
@@ -443,6 +449,7 @@ static void serviceConsole(const BoardRefs& refs, bool connected, bool authentic
       case 'r':
         Serial.println("Screen -> restarted");
         if (gScreenOn) {
+          gLcd.backlight(0);           // back on once the next tick has drawn
           gLcd.reinit();
           gDrawn = false;              // the next tick draws it all
         }
@@ -534,6 +541,7 @@ void ppBoardLogSettings()
 
 void ppBoardPrepareSystemOff()
 {
+  if (gSavePending) saveSettings();
   gLcd.sleep();
   gScreenOn = false;
   // Hold the panel and the touch chip in reset while the nRF52 is off; the
@@ -611,6 +619,8 @@ void ppBoardTick(const BoardRefs& refs)
     gBatteryAt = now;
     readBattery();
   }
+
+  if (gSavePending && static_cast<int32_t>(now - gSaveDueAt) >= 0) saveSettings();
 
   // Buttons. On the first poll, whatever is already pressed (the press that
   // woke us from System OFF) is the baseline: ignored until released.

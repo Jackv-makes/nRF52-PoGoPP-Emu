@@ -337,7 +337,12 @@ void ppUiDraw(PPCanvas& canvas, const PPUiState& st, const PPUiState* prev)
 {
   bool all = prev == nullptr;
   if (all) {
-    canvas.fillRect(0, 0, PP_UI_W, PP_UI_H, PP_UI_BLACK);
+    // The sections below cover the full width; only the strips between them
+    // need clearing here (a full-screen clear first doubled a wake's draw).
+    canvas.fillRect(0, kStatusY + kStatusH, PP_UI_W, kBannerY - kStatusY - kStatusH, PP_UI_BLACK);
+    canvas.fillRect(0, kBannerY + kBannerH, PP_UI_W, kModeY - kBannerY - kBannerH, PP_UI_BLACK);
+    canvas.fillRect(0, kModeY + kModeH, PP_UI_W, kCountY - kModeY - kModeH, PP_UI_BLACK);
+    canvas.fillRect(0, kCountY + 4 * kCountRowH, PP_UI_W, PP_UI_H - kCountY - 4 * kCountRowH, PP_UI_BLACK);
   }
   if (all || prev->link != st.link || prev->power != st.power ||
       (st.power == PP_UI_POWER_BATTERY && prev->batteryPct != st.batteryPct)) {
