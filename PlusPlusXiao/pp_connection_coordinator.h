@@ -14,6 +14,10 @@ ConnectionCoordinatorAuthResult ppConnectionCoordinatorHandleAuthWrite(const Ble
                                                                        const uint8_t* data,
                                                                        uint16_t len);
 void ppConnectionCoordinatorHandleServiceDNotifyEnabled(const BleDispatchRefs& refs);
+// True while the app is running a full sign-in (0x18) on a board that was
+// already paired; see ppConnectionCoordinatorHandleAuthWrite.
+bool ppReauthActive();
+void ppReauthClear();
 bool ppConnectionCoordinatorHandleServiceDWrite(const BleDispatchRefs& refs,
                                                 const uint8_t* data,
                                                 uint16_t len);

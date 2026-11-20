@@ -4,6 +4,7 @@
 #include "pp_ble_dispatch.h"
 #include "pp_connection_coordinator.h"
 #include "pp_log.h"
+#include "pp_device_material.h"
 
 namespace {
 
@@ -266,6 +267,26 @@ void ppServiceWriteCallback(const BleDispatchRefs& refs,
   }
   if (chr == refs.authControl) {
     genericWriteLog("Auth control write", data, len, refs.printHex);
+    // Diagnostic (2026-11-20): which request the app sends after a power cut.
+    // Only the command byte, and for 6-byte writes whether the bytes are the
+    // board's own address; never the bytes themselves.
+    if (len >= 1 && len != 32) {
+      Serial.print("Auth control write op=0x");
+      Serial.print(data[0], HEX);
+      Serial.print(" len=");
+      Serial.print(len);
+      if (len == 6) {
+        bool sameLe = memcmp(data, REAL_PLUSPLUS_ADDR_LE, 6) == 0;
+        bool sameBe = true;
+        for (uint8_t i = 0; i < 6; ++i) sameBe = sameBe && data[i] == REAL_PLUSPLUS_ADDR_LE[5 - i];
+        bool tailLe = memcmp(data + 1, REAL_PLUSPLUS_ADDR_LE, 5) == 0;
+        Serial.print(" own address: ");
+        Serial.print(sameLe ? "yes" : (sameBe ? "yes, reversed" : "no"));
+        Serial.print(", bytes 1-5 = first 5 of it: ");
+        Serial.print(tailLe ? "yes" : "no");
+      }
+      Serial.println();
+    }
     if (len == 32) {
       uint8_t response[16];
       if (refs.plusplusGenerateReconnectResponse(data, response)) {

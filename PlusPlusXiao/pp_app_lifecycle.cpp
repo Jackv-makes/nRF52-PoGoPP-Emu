@@ -4,6 +4,7 @@
 #include <nrf_soc.h>
 
 #include "pp_app_lifecycle.h"
+#include "pp_connection_coordinator.h"
 #include "pp_board.h"
 #include "pp_ble_services.h"
 #include "pp_sleep_policy.h"
@@ -187,6 +188,7 @@ void ppHandleConnect(const AppLifecycleRefs& refs, uint16_t conn_handle)
   }
 
   ppDisarmDisconnectedSleepTimer(refs);
+  ppReauthClear();
   *refs.activeConnHandle = conn_handle;
   *refs.connStartedAt = millis();
   *refs.serviceCNotifyEnabled = false;
@@ -226,7 +228,17 @@ void ppHandleDisconnect(const AppLifecycleRefs& refs, uint16_t conn_handle, uint
   refs.resetVolatilePairSessionState();
   refs.stopPostAuthRuntimeScaffolding();
 
-  if (*refs.pairingStage != PAIR_STAGE_AUTHENTICATED) {
+  if (*refs.pairingStage != PAIR_STAGE_AUTHENTICATED && ppReauthActive()) {
+    // A sign-in on an already paired board broke off: back to the saved
+    // pairing, as after a restart, rather than to a blank board.
+    refs.resetUnpairedState();
+    if (refs.loadPersistentPairState()) {
+      refs.restorePairedStateFromPersistence();
+      Serial.println("Disconnect during re-sign-in -> saved pairing restored");
+    } else {
+      Serial.println("Disconnect during re-sign-in -> no saved pairing, pairable state");
+    }
+  } else if (*refs.pairingStage != PAIR_STAGE_AUTHENTICATED) {
     Serial.println("Disconnect before auth complete -> resetting to virgin pairable state");
     refs.resetUnpairedState();
   } else {

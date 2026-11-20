@@ -44,6 +44,8 @@ static AppLifecycleRefs makeAppLifecycleRefs()
     setManufacturerState,
     refreshPairingExports,
     resetUnpairedState,
+    loadPersistentPairState,
+    restorePairedStateFromPersistence,
     clearPersistentPairState,
     start_advertising,
     print_build_tag,

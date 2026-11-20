@@ -40,6 +40,8 @@ struct AppLifecycleRefs {
   void (*setManufacturerState)(uint8_t state);
   void (*refreshPairingExports)(bool notify);
   void (*resetUnpairedState)();
+  bool (*loadPersistentPairState)();
+  void (*restorePairedStateFromPersistence)();
   void (*clearPersistentPairState)(const char* reason);
   void (*startAdvertising)();
   void (*printBuildTag)(const char* reason);

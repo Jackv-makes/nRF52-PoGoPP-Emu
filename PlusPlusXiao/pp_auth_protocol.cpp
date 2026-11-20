@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "pp_auth_protocol.h"
+#include "pp_connection_coordinator.h"
 
 bool ppAuthProtocolIsAuthenticatedSleepOpcode(uint8_t opcode)
 {
@@ -88,6 +89,14 @@ bool ppAuthProtocolHandleFirstPairWrite(const FirstPairRuntimeRefs& refs,
   }
 
   if (data[0] == 0x18) {
+    if (ppReauthActive()) {
+      // A board that was already paired answered 25 the reconnect way, which
+      // leaves the 378-byte container and its ServiceD challenge as built at
+      // boot, before the SoftDevice could run AES (all zeros). A first pair
+      // builds them at 25; do it here instead (v0.7.1).
+      refs.buildGeneratedInitialAuthBlob();
+      Serial.println("Re-sign-in: auth container and ServiceD challenge built as at first-pair 25");
+    }
     if (len >= 6) {
       refs.donorAuthRuntime->auth18Selector = data[1];
       refs.donorAuthRuntime->auth18NoncePrefix[0] = data[2];
