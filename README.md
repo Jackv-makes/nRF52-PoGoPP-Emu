@@ -154,6 +154,6 @@ spezifisch and paper183 for the pgpemu work it builds on. The LED pattern
 reading and the button press timing come from there.
 * [Seeed Studio](https://www.seeedstudio.com/) for the board, and their
 display library, where the screen's start-up settings come from.
-* *the designer's name* for the
+* *GokuX* for the
 [enclosure](https://www.printables.com/model/1843008-enclosure-for-xiao-147-ips-touch-display-esp32nrf5).
 
