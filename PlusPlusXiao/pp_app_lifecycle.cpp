@@ -135,6 +135,8 @@ void ppProcessDisconnectedSleepIfNeeded(const AppLifecycleRefs& refs)
   enterDisconnectedSystemOff(refs);
 }
 
+__attribute__((weak)) bool ppBoardResetHoldAllowed() { return true; }
+
 void ppProcessPhysicalResetButtonIfNeeded(const AppLifecycleRefs& refs)
 {
   bool pressed = (nrf_gpio_pin_read(refs.physicalResetButtonRawPin) == 0);
@@ -176,6 +178,10 @@ void ppProcessPhysicalResetButtonIfNeeded(const AppLifecycleRefs& refs)
     *refs.physicalResetButtonTriggered = true;
     Serial.print("Physical reset button held for full threshold ms=");
     Serial.println(now - *refs.physicalResetButtonPressedAt);
+    if (!ppBoardResetHoldAllowed()) {
+      Serial.println("Pairing wipe skipped: the board's controls are locked");
+      return;
+    }
     ppResetPairingFromPhysicalButton(refs, "pin 17 hold");
   }
 }

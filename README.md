@@ -83,11 +83,19 @@ The board has a little slide switch for the battery. It has to be in the
 |Control|What it does|
 |-|-|
 |A, click|a manual catch or spin press (when connected)|
-|A, hold 5 s|wipes the pairing|
+|A, double-tap|locks or unlocks B and the touch screen|
+|A, hold 5 s|wipes the pairing (not while locked)|
 |B, click|next mode: AUTO (catch + spin), CATCH, SPIN, MANUAL|
 |B, hold 1.5 s|screen brightness low / mid / high|
 |Tap the mode card|same as B|
 |Tap the top banner|dismisses it, or searches for the phone when not connected|
+
+Double-tap A to lock the controls, so nothing gets changed by accident in a
+pocket. While it's locked, B and the touch screen only show LOCKED, and
+holding A won't wipe the pairing. A still does its catch and spin presses.
+The padlock next to the B on the mode card shows which way it is: orange
+and shut when it's locked. Since A waits a moment to see if a second tap is
+coming, a single click goes out about a third of a second after you let go.
 
 The screen shows the link and the battery at the top, then the last thing
 the app reported, the mode, and counters for what you've caught, what fled
@@ -101,7 +109,7 @@ after a Pokémon.
 The screen goes dark after 30 seconds to save battery, and a tap or a button
 wakes it. The buttons work with it dark. On battery it goes to sleep after
 15 minutes without a connection, and A or B wakes it. All the settings are
-saved.
+saved, and so is the lock.
 
 ## Battery life
 

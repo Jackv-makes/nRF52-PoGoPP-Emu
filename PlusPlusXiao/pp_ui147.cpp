@@ -137,6 +137,8 @@ static BannerLook bannerLook(const PPUiState& st)
     case PP_UI_BANNER_PRESSED: return { "PRESS", "button sent", PP_UI_WHITE, PP_UI_BLACK };
     case PP_UI_BANNER_NOT_CONNECTED: return { "NO LINK", "not connected", PP_UI_RED, PP_UI_WHITE };
     case PP_UI_BANNER_ADVERTISING: return { "SEARCH", "fast, 2 min", PP_UI_YELLOW, PP_UI_BLACK };
+    case PP_UI_BANNER_LOCKED: return { "LOCKED", "double-tap A", PP_UI_ORANGE, PP_UI_BLACK };
+    case PP_UI_BANNER_UNLOCKED: return { "UNLOCKED", "B + touch on", PP_UI_CARD, PP_UI_WHITE };
     default: break;
   }
   switch (st.link) {
@@ -201,6 +203,27 @@ static void drawBanner(PPCanvas& canvas, const PPUiState& st)
   drawTextOver(canvas, (PP_UI_W - w) / 2, kBannerY + 56, look.sub, 2, look.fg);
 }
 
+// A padlock 14 x 14, the height of scale-2 text: shut when locked, open
+// (shackle swung out to the right) when not.
+static constexpr int16_t kLockW = 14;
+
+static void drawLock(PPCanvas& canvas, int16_t x, int16_t y, bool locked, uint16_t fg, uint16_t bg)
+{
+  canvas.fillRect(x, y, kLockW, 6, bg);
+  if (locked) {
+    canvas.fillRect(x + 2, y, 8, 2, fg);
+    canvas.fillRect(x + 2, y + 2, 2, 4, fg);
+    canvas.fillRect(x + 8, y + 2, 2, 4, fg);
+  } else {
+    canvas.fillRect(x + 6, y, 8, 2, fg);
+    canvas.fillRect(x + 6, y + 2, 2, 4, fg);
+    canvas.fillRect(x + 12, y + 2, 2, 2, fg);
+  }
+  canvas.fillRect(x, y + 6, 12, 8, fg);
+  canvas.fillRect(x + 12, y + 6, 2, 8, bg);
+  canvas.fillRect(x + 5, y + 8, 2, 3, bg);    // keyhole
+}
+
 static void drawMode(PPCanvas& canvas, const PPUiState& st)
 {
   static const char* const kNames[] = { "AUTO", "CATCH", "SPIN", "MANUAL" };
@@ -211,6 +234,8 @@ static void drawMode(PPCanvas& canvas, const PPUiState& st)
   ppUiDrawText(canvas, kPad, kModeY + 8, "MODE", 2, PP_UI_GREY, PP_UI_CARD);
   int16_t w = ppUiTextWidth("B", 2);
   ppUiDrawText(canvas, PP_UI_W - kPad - w, kModeY + 8, "B", 2, PP_UI_GREY, PP_UI_CARD);
+  drawLock(canvas, PP_UI_W - kPad - w - 8 - kLockW, kModeY + 8, st.locked,
+           st.locked ? PP_UI_ORANGE : PP_UI_GREY, PP_UI_CARD);
   drawCentred(canvas, kModeY + 34, kNames[p], 4, kColours[p], PP_UI_CARD);
   drawCentred(canvas, kModeY + 72, kSubs[p], 2, PP_UI_WHITE, PP_UI_CARD);
 }
@@ -351,7 +376,8 @@ void ppUiDraw(PPCanvas& canvas, const PPUiState& st, const PPUiState* prev)
   if (all || prev->banner != st.banner || (st.banner == PP_UI_BANNER_IDLE && prev->link != st.link)) {
     drawBanner(canvas, st);
   }
-  if (all || ppUiPreset(prev->catchMode, prev->spin) != ppUiPreset(st.catchMode, st.spin)) {
+  if (all || ppUiPreset(prev->catchMode, prev->spin) != ppUiPreset(st.catchMode, st.spin) ||
+      prev->locked != st.locked) {
     drawMode(canvas, st);
   }
   if (all || prev->caught != st.caught) drawCounter(canvas, 0, "CAUGHT", PP_UI_GREEN, st.caught);

@@ -7,7 +7,8 @@
 // Portrait, 172 x 320, top to bottom:
 //   status bar   link state, battery or USB
 //   banner       the last event (Pokemon, caught, ...) or the idle state
-//   mode card    the B-button preset: AUTO / CATCH / SPIN / MANUAL
+//   mode card    the B-button preset: AUTO / CATCH / SPIN / MANUAL, and a
+//                padlock, shut while the controls are locked (double-tap A)
 //   counters     caught, fled, spins since boot, and how long the phone has
 //                been connected
 
@@ -65,6 +66,8 @@ enum PPUiBanner : uint8_t {
   PP_UI_BANNER_PRESSED,
   PP_UI_BANNER_NOT_CONNECTED,
   PP_UI_BANNER_ADVERTISING,
+  PP_UI_BANNER_LOCKED,      // locked now, or a locked control was used
+  PP_UI_BANNER_UNLOCKED,
   PP_UI_BANNER_COUNT
 };
 
@@ -72,6 +75,7 @@ struct PPUiState {
   uint8_t link;        // PPUiLink
   uint8_t catchMode;   // PPCatchMode: 0 off, otherwise catching
   bool spin;
+  bool locked;         // B and the touch screen do nothing but say so
   uint16_t caught;
   uint16_t fled;
   uint16_t spins;

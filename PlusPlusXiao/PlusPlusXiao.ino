@@ -40,7 +40,7 @@ static const char BUILD_TAG[] = "donor-serviceflow-v190-serviceb-parity-0517-clo
 #elif defined(PP_BOARD_GOPLUS)
 static const char BUILD_TAG[] = "donor-serviceflow-v190-serviceb-parity-0517-goplus833-v0.4";
 #elif defined(PP_BOARD_DISPLAY147)
-static const char BUILD_TAG[] = "donor-serviceflow-v190-serviceb-parity-0517-xiao-display147-v0.7.1";
+static const char BUILD_TAG[] = "donor-serviceflow-v190-serviceb-parity-0517-xiao-display147-v0.8";
 #elif defined(PP_BOARD_BARE)
 static const char BUILD_TAG[] = "donor-serviceflow-v190-serviceb-parity-0517-xiao-bare-v0.1.6";
 #elif defined(PP_BOARD_CARRIER_RGB)

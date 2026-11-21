@@ -3,12 +3,18 @@
 // Controls:
 //   A (USR1, D19)  click       -> manual catch/spin press when connected;
 //                                 while disconnected, fast advertising
-//   A              hold 5 s    -> wipe pairing (pp_app_lifecycle, raw pin)
+//   A              double-tap  -> lock / unlock B and the touch screen
+//   A              hold 5 s    -> wipe pairing (pp_app_lifecycle, raw pin);
+//                                 not while locked
 //   B (USR2, D15)  click       -> next mode: AUTO (catch + spin), CATCH,
 //                                 SPIN, MANUAL
 //   B              hold 1.5 s  -> backlight low / mid / high
 //   touch: mode card = same as B; banner while disconnected = fast
 //          advertising. A tap on a dark screen only wakes it.
+//
+// Locked, B and taps only show LOCKED and the 5 s wipe is off, so nothing
+// gets changed by accident. A still presses. A single click waits
+// kDoubleTapMs to see whether a second one follows.
 //
 // Catching is all or nothing and presses always go at the normal pace:
 // this build has no "new Pokemon only" filter and no fast press speed.
@@ -23,7 +29,8 @@
 //
 // The USB console (115200 baud, no Enter needed):
 //   p press   s auto spin   a advertise fast   b backlight   r restart screen
-//   i status   W wipe pairing (capital W)   ? help
+//   l lock / unlock   i status   W wipe pairing (capital W)   ? help
+// The console keys work while locked.
 #ifdef PP_BOARD_DISPLAY147
 #include "pp_board.h"
 
@@ -57,7 +64,7 @@ struct PersistedBoardSettings {
   uint8_t lastDropReason;
   uint8_t backlight;   // index into kBacklightLevels
   uint8_t unusedLastCatchMode;  // v0.1; ignored
-  uint8_t reserved;
+  uint8_t locked;      // 0/1 (v0.8; earlier builds wrote 0)
   uint32_t lifetimeConnSec;
 };
 
@@ -69,6 +76,7 @@ static bool gAdvertise = true;
 static uint8_t gLastDropReason = 0;
 static uint8_t gBacklight = 1;
 static uint32_t gLifetimeConnSec = 0;
+static bool gLocked = false;
 static bool gSettingsLoaded = false;
 static bool gSavePending = false;
 static uint32_t gSaveDueAt = 0;
@@ -96,6 +104,7 @@ static bool loadSettings()
   gLastDropReason = rec.lastDropReason;
   gBacklight = rec.backlight < sizeof(kBacklightLevels) ? rec.backlight : 1;
   gLifetimeConnSec = rec.lifetimeConnSec;
+  gLocked = rec.locked != 0;
   return true;
 }
 
@@ -112,6 +121,7 @@ static void saveSettings()
   rec.lastDropReason = gLastDropReason;
   rec.backlight = gBacklight;
   rec.lifetimeConnSec = gLifetimeConnSec;
+  rec.locked = gLocked ? 1 : 0;
   InternalFS.remove(kSettingsPath);
   File f(InternalFS);
   if (!f.open(kSettingsPath, FILE_O_WRITE)) {
@@ -184,6 +194,10 @@ static Button gBtnB = { PP_BOARD_PIN_BTN2, false, false, 0, 0, false };
 static constexpr uint32_t kDebounceMs = 25;
 static constexpr uint32_t kClickMaxMs = 600;
 static constexpr uint32_t kHoldMs = 1500;
+// Release to the next press for a double-tap.
+static constexpr uint32_t kDoubleTapMs = 350;
+static bool gAClickPending = false;
+static uint32_t gAClickAt = 0;
 
 // Returns 1 = click, 2 = hold (once), 0 = nothing.
 static uint8_t pollButton(Button& b)
@@ -337,7 +351,8 @@ static void printSettings()
   Serial.print(", adv ");
   Serial.print(gAdvertise ? "on" : "off");
   Serial.print(", backlight ");
-  Serial.println(kBacklightNames[gBacklight]);
+  Serial.print(kBacklightNames[gBacklight]);
+  Serial.println(gLocked ? ", locked" : ", unlocked");
 }
 
 // ---------------- actions ----------------
@@ -387,6 +402,22 @@ static void actToggleAutoSpin()
   Serial.println(gAutoSpin ? "on" : "off");
 }
 
+static void actToggleLock()
+{
+  gLocked = !gLocked;
+  saveSettingsSoon();
+  showBanner(gLocked ? PP_UI_BANNER_LOCKED : PP_UI_BANNER_UNLOCKED, kBannerMs);
+  Serial.println(gLocked ? "Controls -> locked" : "Controls -> unlocked");
+}
+
+// A locked control: say so, do nothing else.
+static void actLockedNote(const char* what)
+{
+  Serial.print(what);
+  Serial.println(" ignored: locked (double-tap A to unlock)");
+  showBanner(PP_UI_BANNER_LOCKED, kBannerMs);
+}
+
 static void actCycleBacklight()
 {
   gBacklight = (gBacklight + 1) % sizeof(kBacklightLevels);
@@ -404,7 +435,7 @@ static uint32_t gSleepHoldAt = 0;
 static void printConsoleHelp()
 {
   Serial.println("Keys: p press, s auto spin, a advertise fast, b backlight, r restart screen,");
-  Serial.println("      i status, W wipe pairing (capital W), ? this list");
+  Serial.println("      l lock, i status, W wipe pairing (capital W), ? this list");
 }
 
 static void printStatus(const BoardRefs& refs, bool connected)
@@ -446,6 +477,7 @@ static void serviceConsole(const BoardRefs& refs, bool connected, bool authentic
         break;
       case 's': actToggleAutoSpin(); break;
       case 'b': actCycleBacklight(); break;
+      case 'l': actToggleLock(); break;
       case 'r':
         Serial.println("Screen -> restarted");
         if (gScreenOn) {
@@ -475,6 +507,7 @@ static PPUiState currentState(bool connected, bool authenticated)
   else st.link = gAdvertise ? PP_UI_LINK_SEARCHING : PP_UI_LINK_HIDDEN;
   st.catchMode = gCatchMode;
   st.spin = gAutoSpin;
+  st.locked = gLocked;
   st.caught = gCountCaught;
   st.fled = gCountFled;
   st.spins = gCountSpins;
@@ -488,7 +521,7 @@ static PPUiState currentState(bool connected, bool authenticated)
 
 static bool sameState(const PPUiState& a, const PPUiState& b)
 {
-  return a.link == b.link && a.catchMode == b.catchMode && a.spin == b.spin &&
+  return a.link == b.link && a.catchMode == b.catchMode && a.spin == b.spin && a.locked == b.locked &&
          a.caught == b.caught && a.fled == b.fled && a.spins == b.spins && a.linkedSec == b.linkedSec && a.power == b.power &&
          a.batteryPct == b.batteryPct && a.banner == b.banner;
 }
@@ -553,6 +586,7 @@ bool ppBoardAutoSpin() { return gAutoSpin; }
 uint8_t ppBoardCatchMode() { return gCatchMode; }
 uint8_t ppBoardPressSpeed() { return PP_SPEED_NORMAL; }
 bool ppBoardAdvertiseEnabled() { return gAdvertise; }
+bool ppBoardResetHoldAllowed() { return !gLocked; }
 
 void ppBoardOnEvent(PPLedEvent evt, const char* label)
 {
@@ -639,12 +673,25 @@ void ppBoardTick(const BoardRefs& refs)
     uint8_t a = pollButton(gBtnA);
     uint8_t b = pollButton(gBtnB);
     if (a || b || gBtnA.stable || gBtnB.stable) screenWake();
+    // A click waits for a possible second one; two make a double-tap.
     if (a == 1) {
+      if (gAClickPending) {
+        gAClickPending = false;
+        actToggleLock();
+      } else {
+        gAClickPending = true;
+        gAClickAt = now;
+      }
+    }
+    if (gAClickPending && !gBtnA.stable && (now - gAClickAt) > kDoubleTapMs) {
+      gAClickPending = false;
       if (connected) actCatchPress(refs, authenticated);
       else if (ppBoardAdvertiseEnabled()) actFastAdvertising(refs, "Button A");
       else actCatchPress(refs, false);
     }
-    if (b == 1) {
+    if (b && gLocked) {
+      if (b == 1) actLockedNote("Button B");
+    } else if (b == 1) {
       if (!connected && ppBoardAdvertiseEnabled()) actFastAdvertising(refs, "Button B");
       actNextPreset();
     } else if (b == 2) {
@@ -652,13 +699,18 @@ void ppBoardTick(const BoardRefs& refs)
     }
   }
 
-  switch (pollTouch()) {
-    case PP_UI_ZONE_BANNER:
-      if (!connected && ppBoardAdvertiseEnabled()) actFastAdvertising(refs, "Banner tap");
-      else gBannerUntil = now;         // dismiss
-      break;
-    case PP_UI_ZONE_MODE: actNextPreset(); break;
-    default: break;
+  uint8_t zone = pollTouch();
+  if (zone != PP_UI_ZONE_NONE && gLocked) {
+    actLockedNote("Tap");
+  } else {
+    switch (zone) {
+      case PP_UI_ZONE_BANNER:
+        if (!connected && ppBoardAdvertiseEnabled()) actFastAdvertising(refs, "Banner tap");
+        else gBannerUntil = now;         // dismiss
+        break;
+      case PP_UI_ZONE_MODE: actNextPreset(); break;
+      default: break;
+    }
   }
 
   serviceConsole(refs, connected, authenticated);

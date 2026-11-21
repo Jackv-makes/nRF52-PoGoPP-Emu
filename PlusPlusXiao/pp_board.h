@@ -189,6 +189,9 @@ uint8_t ppBoardCatchMode();
 enum PPPressSpeed : uint8_t { PP_SPEED_NORMAL = 0, PP_SPEED_FAST = 1 };
 uint8_t ppBoardPressSpeed();
 bool ppBoardAdvertiseEnabled();
+// Whether holding the catch button wipes the pairing. A weak default in
+// pp_app_lifecycle.cpp says yes; the display build says no while locked.
+bool ppBoardResetHoldAllowed();
 
 // Events from the catch engine: counters and LED flashes.
 void ppBoardOnEvent(PPLedEvent evt, const char* label);
