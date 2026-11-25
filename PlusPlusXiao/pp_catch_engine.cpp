@@ -11,13 +11,43 @@ static bool gReleasePending = false;
 static uint32_t gReleaseAt = 0;
 static constexpr uint32_t kReleaseAfterMs = 500;
 
-// The last prompt the app showed (Pokemon, new Pokemon or Pokestop) and when.
-// A solid red flash right after a Pokestop prompt is the app turning down the
-// spin (one 1.2 s red with vibration, and the stop is offered again after
-// it), not a full Pokemon box. The prompts last 30 s.
+// The last prompt (Pokemon or Pokestop) and when, so a storage-full flash that
+// follows can be split into box-full (after a Pokemon) or bag-full (after a
+// Pokestop). Window = mallek's PP_FULL_CONTEXT_MS.
 static PPLedEvent gLastPrompt = PP_LED_NONE;
 static uint32_t gLastPromptAt = 0;
-static constexpr uint32_t kPromptWindowMs = 35000;
+static constexpr uint32_t kContextMs = 20000;
+
+// Exact 3-byte LED-entry families, ported from mallek/nRF52-go-plus-plus-
+// backup- (code/nrf_emulator/pgpemu_xiao/pp_feedback_logic.cpp, AGPL). mallek
+// identified these from a real field log labelled against the in-game Journal,
+// which fixes the warnings pgpemu's colour-count guesses got wrong (notably
+// bag-full vs box-full, and an all-white pattern misfiring as bag-full). Each
+// entry is {duration (50 ms units), green<<4|red, flags<<4|blue}.
+struct LedEntry { uint8_t a, b, c; };
+static const LedEntry kShake        = { 0x03, 0x88, 0xF8 };  // opens every encounter result
+static const LedEntry kRainbowStart = { 0x03, 0x08, 0xF0 };  // caught: colour cycle after the shake
+static const LedEntry kRedBlink     = { 0x01, 0x0F, 0xF0 };  // fled: red blink after the shake
+static const LedEntry kCycleStart   = { 0x03, 0xF0, 0x80 };  // Pokestop items
+static const LedEntry kStopNearby   = { 0x04, 0x00, 0xFF };  // Pokestop in range
+static const LedEntry kEncounter    = { 0x02, 0xCC, 0xF0 };  // Pokemon encounter
+static const LedEntry kEncounterAlt = { 0x10, 0xF0, 0xF0 };  // also an encounter
+static const LedEntry kStorageFull  = { 0x18, 0x0F, 0xF0 };  // one long flash: box or bag full
+static const LedEntry kStopPassed   = { 0x10, 0xFF, 0xFF };  // Pokestop left range without a spin
+
+static bool entryIs(const uint8_t* data, int index, const LedEntry& e)
+{
+  const uint8_t* p = data + 4 + 3 * index;
+  return p[0] == e.a && p[1] == e.b && p[2] == e.c;
+}
+
+static bool containsEntry(const uint8_t* data, int count, const LedEntry& e)
+{
+  for (int i = 0; i < count; ++i) {
+    if (entryIs(data, i, e)) return true;
+  }
+  return false;
+}
 
 static void firePress(const CatchEngineRefs& refs)
 {
@@ -116,111 +146,94 @@ void ppCatchTick(const CatchEngineRefs& refs)
 
 PPLedEvent ppCatchHandleLedWrite(const CatchEngineRefs& refs, const uint8_t* buffer, uint16_t len)
 {
-  if (len < 4) {
-    Serial.print("Catch engine: LED write too short len=");
-    Serial.println(len);
+  if (len < 4 || buffer[0] || buffer[1] || buffer[2]) {
     return PP_LED_NONE;
   }
-  int patterns = buffer[3] & 0x1F;
-  if (len < 4 + 3 * patterns) {
+  // Count is the low 5 bits of byte 3 (priority is the top 3); entries follow,
+  // 3 bytes each.
+  int count = buffer[3] & 0x1F;
+  if (len < 4 + 3 * count) {
     Serial.print("Catch engine: LED write truncated len=");
     Serial.print(len);
-    Serial.print(" patterns=");
-    Serial.println(patterns);
+    Serial.print(" count=");
+    Serial.println(count);
     return PP_LED_NONE;
   }
-  int priority = (buffer[3] >> 5) & 0x07;
-
-  int durationUnits = 0;
-  int countBallShake = 0;
-  int countRed = 0, countGreen = 0, countBlue = 0, countYellow = 0, countWhite = 0;
-  int countOff = 0, countNotOff = 0;
-  bool anyVibration = false;
-
-  for (int i = 0; i < patterns; ++i) {
-    const uint8_t* pat = &buffer[4 + 3 * i];
-    uint8_t duration = pat[0];
-    uint8_t red = pat[1] & 0x0F;
-    uint8_t green = (pat[1] >> 4) & 0x0F;
-    uint8_t blue = pat[2] & 0x0F;
-    bool vibration = (pat[2] & 0x70) != 0;
-    anyVibration |= vibration;
-    durationUnits += duration;
-
-    if (!red && !green && !blue) {
-      ++countOff;
-      continue;
-    }
-    ++countNotOff;
-    if (i <= 9 && red && green && blue) {
-      ++countBallShake;
-    }
-    if (red && !green && !blue) ++countRed;
-    else if (!red && green && !blue) ++countGreen;
-    else if (!red && !green && blue) ++countBlue;
-    else if (red && green && !blue) ++countYellow;
-    else if (red && green && blue) ++countWhite;
+  if (count == 0) {
+    return PP_LED_OFF;
   }
 
-  Serial.print("Catch engine: LED patterns=");
-  Serial.print(patterns);
-  Serial.print(" prio=");
-  Serial.print(priority);
-  Serial.print(" total_ms=");
-  Serial.print(durationUnits * 50);
-  Serial.print(" r/g/b/y/w/off=");
-  Serial.print(countRed); Serial.print('/');
-  Serial.print(countGreen); Serial.print('/');
-  Serial.print(countBlue); Serial.print('/');
-  Serial.print(countYellow); Serial.print('/');
-  Serial.print(countWhite); Serial.print('/');
-  Serial.print(countOff);
-  Serial.print(anyVibration ? " vib" : "");
-  Serial.println();
+  // Sum entry durations for the press-timing fit, and note an all-dark write.
+  int durationUnits = 0;
+  bool allOff = true;
+  for (int i = 0; i < count; ++i) {
+    const uint8_t* p = &buffer[4 + 3 * i];
+    durationUnits += p[0];
+    if (p[1] || p[2]) allOff = false;
+  }
 
+  // Classify by exact entry families (mallek's field-log decode). isResult
+  // marks a result sequence (opened by the shake) so an unrecognised result is
+  // not mistaken for a pressable prompt.
+  uint32_t now = millis();
   PPLedEvent evt = PP_LED_UNKNOWN;
-  bool press = false;
-  bool spin = refs.autoSpin();
-  uint8_t catchMode = refs.catchMode();
-
-  if (countOff && !countNotOff) {
+  bool isResult = false;
+  if (allOff) {
     evt = PP_LED_OFF;
-  } else if (countWhite && countWhite == countNotOff) {
-    evt = PP_LED_BAG_FULL;
-  } else if (countRed && countOff && countRed == countNotOff) {
-    evt = PP_LED_BALLS_EMPTY;
-  } else if (countRed && !countOff && countRed == countNotOff) {
-    bool afterStop = gLastPrompt == PP_LED_POKESTOP && (millis() - gLastPromptAt) < kPromptWindowMs;
-    evt = afterStop ? PP_LED_SPIN_FAILED : PP_LED_BOX_FULL;
-  } else if (countGreen && countGreen == countNotOff) {
-    evt = PP_LED_POKEMON;
-    press = (catchMode == 1);
-  } else if (countYellow && countYellow == countNotOff) {
-    evt = PP_LED_NEW_POKEMON;
-    press = (catchMode != 0);
-  } else if (countBlue && countBlue == countNotOff) {
-    evt = PP_LED_POKESTOP;
-    press = spin;
-  } else if (countBallShake) {
-    if (countBlue && countGreen) {
-      evt = PP_LED_CAUGHT;
-    } else if (countRed) {
-      evt = PP_LED_FLED;
+  } else if (count == 1) {
+    if (entryIs(buffer, 0, kStorageFull)) {
+      // One long flash = box/bag full; the recent prompt says which.
+      bool freshStop = gLastPrompt == PP_LED_POKESTOP && (now - gLastPromptAt) <= kContextMs;
+      evt = freshStop ? PP_LED_BAG_FULL : PP_LED_BOX_FULL;
+    } else if (entryIs(buffer, 0, kStopPassed)) {
+      evt = PP_LED_SPIN_FAILED;  // Pokestop left range without spinning
     } else {
       evt = PP_LED_UNKNOWN;
     }
-  } else if (countRed && countGreen && countBlue && !countOff) {
+  } else if (entryIs(buffer, 0, kShake)) {
+    isResult = true;
+    if (containsEntry(buffer, count, kRainbowStart)) evt = PP_LED_CAUGHT;
+    else if (containsEntry(buffer, count, kRedBlink)) evt = PP_LED_FLED;
+    else evt = PP_LED_UNKNOWN;
+  } else if (entryIs(buffer, 0, kCycleStart)) {
     evt = PP_LED_ITEMS;
+  } else if (entryIs(buffer, 0, kStopNearby)) {
+    evt = PP_LED_POKESTOP;
+  } else if (entryIs(buffer, 0, kEncounter) || entryIs(buffer, 0, kEncounterAlt)) {
+    evt = PP_LED_POKEMON;
   } else {
     evt = PP_LED_UNKNOWN;
-    // pgpemu presses on anything it does not recognise when auto is on.
-    press = spin || (catchMode != 0);
   }
 
-  if (evt == PP_LED_POKEMON || evt == PP_LED_NEW_POKEMON || evt == PP_LED_POKESTOP) {
+  Serial.print("Catch engine: entries=");
+  Serial.print(count);
+  Serial.print(" first=");
+  Serial.print(buffer[4], HEX); Serial.print(' ');
+  Serial.print(buffer[5], HEX); Serial.print(' ');
+  Serial.print(buffer[6], HEX);
+  Serial.print(" total_ms=");
+  Serial.print(durationUnits * 50);
+  Serial.print(" -> ");
+  Serial.println(ppLedEventLabel(evt));
+
+  // Remember the prompt for the box/bag split; clear it once a result lands.
+  if (evt == PP_LED_POKEMON || evt == PP_LED_POKESTOP) {
     gLastPrompt = evt;
-    gLastPromptAt = millis();
+    gLastPromptAt = now;
+  } else if (evt == PP_LED_CAUGHT || evt == PP_LED_FLED || evt == PP_LED_ITEMS) {
+    gLastPrompt = PP_LED_NONE;
   }
+
+  // Press decisions. Prompts press when their mode is on. An unrecognised
+  // MULTI-entry, non-result pattern still presses in auto (like pgpemu), so a
+  // catch is not missed on a prompt we have not catalogued; results, single
+  // entries and acks never press.
+  bool spin = refs.autoSpin();
+  uint8_t catchMode = refs.catchMode();
+  bool press = false;
+  if (evt == PP_LED_POKEMON) press = (catchMode != 0);
+  else if (evt == PP_LED_POKESTOP) press = spin;
+  else if (evt == PP_LED_UNKNOWN && !isResult && count > 1) press = spin || (catchMode != 0);
 
   if (evt != PP_LED_OFF && refs.onEvent) {
     refs.onEvent(evt, ppLedEventLabel(evt));
@@ -229,7 +242,7 @@ PPLedEvent ppCatchHandleLedWrite(const CatchEngineRefs& refs, const uint8_t* buf
   if (press) {
     int patternMs = durationUnits * 50;
     // Normal keeps pgpemu's human-like 1.0-2.5 s; Fast answers in 0.3-0.8 s.
-    // Fast only applies to recognised prompts; unknown patterns keep pgpemu's pacing.
+    // Fast only applies to recognised prompts; unknowns keep pgpemu's pacing.
     bool fast = refs.pressSpeed && refs.pressSpeed() == 1 && evt != PP_LED_UNKNOWN;
     uint32_t delayMs = fast ? (300 + random() % 501) : (1000 + random() % 1501);
     if (static_cast<int>(delayMs) < patternMs) {

@@ -1,6 +1,10 @@
 #pragma once
-// Catch / spin engine, ported from pgpemu (shortcuts/pgpemu, pgp_led_handler.c
-// and pgp_autobutton.c). The Plus+ Service E is the original GO Plus
+// Catch / spin engine. The press timing is from pgpemu (shortcuts/pgpemu,
+// pgp_led_handler.c and pgp_autobutton.c); the LED-pattern classification is
+// ported from mallek/nRF52-go-plus-plus-backup- (pp_feedback_logic.cpp), which
+// matches exact entry bytes from a real field log instead of pgpemu's colour
+// counts, fixing the bag-full / box-full / result mislabels.
+// The Plus+ Service E is the original GO Plus
 // LED/button service: the app writes colour patterns to the LED
 // characteristic and the device answers with a 10-sample button bitmap on
 // the button characteristic.

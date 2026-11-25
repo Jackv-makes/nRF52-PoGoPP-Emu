@@ -102,9 +102,12 @@ the app reported, the mode, and counters for what you've caught, what fled
 and the stops you've spun since it was switched on. The last row, LINKED,
 shows how long the phone has been connected this time.
 
-When a stop won't spin, say it's still on cool-down, the game answers with a
-quick red flash. The screen shows NO SPIN for that. BOX FULL only comes up
-after a Pokémon.
+The Plus+ gives one short flash for both a full Pokémon box and a full item
+bag, so the screen tells them apart by what the app showed just before it:
+BAG FULL if the last thing was a stop, BOX FULL otherwise. And the flash a
+stop gives when it won't spin, say it's on cool-down or you've driven out of
+range, shows as NO SPIN now, not the BAG FULL the raw pattern used to be read
+as.
 
 The screen goes dark after 30 seconds to save battery, and a tap or a button
 wakes it. The buttons work with it dark. On battery it goes to sleep after
@@ -158,8 +161,13 @@ GNU AGPL v3.0, the same as kiyoukan's firmware that this builds on. See
 working out the Plus+ pairing and reconnect protocol and publishing the
 nRF52 firmware this runs on.
 * [shortcuts](https://github.com/shortcuts/pgpemu) for pgpemu, and yohanes,
-spezifisch and paper183 for the pgpemu work it builds on. The LED pattern
-reading and the button press timing come from there.
+spezifisch and paper183 for the pgpemu work it builds on. The button press
+timing comes from there.
+* [mallek](https://github.com/mallek/nRF52-go-plus-plus-backup-) for working
+out what the Plus+'s LED patterns actually mean, from a real field log checked
+against the in-game Journal. That's how the screen tells a catch from a getaway,
+a full bag from a full box, and a skipped stop from a real warning. I was
+getting those wrong before.
 * [Seeed Studio](https://www.seeedstudio.com/) for the board, and their
 display library, where the screen's start-up settings come from.
 * *the designer's name* for the
